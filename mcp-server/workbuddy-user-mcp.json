@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "wb-audit-backend": {
+      "type": "stdio",
+      "command": "E:/py3.10/python.exe",
+      "args": [
+        "E:/ai/workBuddy-audit-agent/AuditAgent-End/mcp-server/wb_audit_mcp.py"
+      ],
+      "env": {
+        "WB_AUDIT_BASE": "http://127.0.0.1:8080/api",
+        "PYTHONIOENCODING": "utf-8"
+      },
+      "description": "AI审核助手后端操作：任务发起/材料提交/AI写结论/审核监控/人工确认(4=陈志强 5=张伟)"
+    }
+  }
+}

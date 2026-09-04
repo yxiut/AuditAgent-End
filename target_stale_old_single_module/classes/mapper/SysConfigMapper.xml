@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wb.audit.message.mapper.SysConfigMapper">
+
+    <select id="selectById" parameterType="long" resultType="com.wb.audit.message.entity.SysConfig">
+        SELECT id, config_key, config_value, description, create_time, update_time FROM wb_sys_config WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultType="com.wb.audit.message.entity.SysConfig">
+        SELECT id, config_key, config_value, description, create_time, update_time FROM wb_sys_config
+    </select>
+
+    <insert id="insert" parameterType="com.wb.audit.message.entity.SysConfig" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wb_sys_config (config_key, config_value, description, create_time, update_time)
+        VALUES (#{configKey}, #{configValue}, #{description}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="updateById" parameterType="com.wb.audit.message.entity.SysConfig">
+        UPDATE wb_sys_config
+        SET config_key = #{configKey},
+      config_value = #{configValue},
+      description = #{description},
+      create_time = #{createTime},
+      update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM wb_sys_config WHERE id = #{id}
+    </delete>
+
+</mapper>

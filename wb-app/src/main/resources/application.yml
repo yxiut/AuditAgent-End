@@ -1,0 +1,35 @@
+server:
+  port: 8080
+
+app:
+  upload-dir: ./uploads
+
+spring:
+  application:
+    name: AuditAgent-End
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    fail-on-empty-beans: false
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3307/wb_audit?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  # 对应的 XML 文件位置
+  mapper-locations: classpath*:mapper/**/*Mapper.xml
+  # 实体扫描，多个package用逗号或者分号分隔
+  type-aliases-package: com.wb.audit.**.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    call-setters-on-nulls: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+
+

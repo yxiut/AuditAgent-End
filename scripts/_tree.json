@@ -1,0 +1,123 @@
+[
+  {
+    "region": "零部件",
+    "projects": [
+      {
+        "subElements": [
+          {
+            "subElement": "质量信息传递",
+            "clauses": [
+              {
+                "clauseName": "问题传递及时性",
+                "clauseId": "LJ-01"
+              }
+            ]
+          },
+          {
+            "subElement": "质量问题记录",
+            "clauses": [
+              {
+                "clauseName": "CR记录规范性",
+                "clauseId": "LJ-02"
+              },
+              {
+                "clauseName": "QR升级规范性",
+                "clauseId": "LJ-03"
+              }
+            ]
+          }
+        ],
+        "project": "质量数据采集"
+      },
+      {
+        "subElements": [
+          {
+            "subElement": "指标统计",
+            "clauses": [
+              {
+                "clauseName": "零部件PPM统计",
+                "clauseId": "LJ-04"
+              }
+            ]
+          },
+          {
+            "subElement": "监控分析",
+            "clauses": [
+              {
+                "clauseName": "PPM监控改进",
+                "clauseId": "LJ-05"
+              }
+            ]
+          }
+        ],
+        "project": "质量数据运用"
+      }
+    ]
+  },
+  {
+    "region": "过程（焊接）",
+    "projects": [
+      {
+        "subElements": [
+          {
+            "subElement": "质量监视测量设备配置",
+            "clauses": [
+              {
+                "clauseName": "MSA报告正确性",
+                "clauseId": "HJ-GC-01"
+              }
+            ]
+          }
+        ],
+        "project": "质量数据采集"
+      },
+      {
+        "subElements": [
+          {
+            "subElement": "指标监控分析",
+            "clauses": [
+              {
+                "clauseName": "过程指标监控（整车）",
+                "clauseId": "HJ-GC-02"
+              }
+            ]
+          }
+        ],
+        "project": "质量数据运用"
+      }
+    ]
+  },
+  {
+    "region": "过程（冲压）",
+    "projects": [
+      {
+        "subElements": [
+          {
+            "subElement": "质量监视测量设备配置",
+            "clauses": [
+              {
+                "clauseName": "MSA报告正确性",
+                "clauseId": "CY-GC-01"
+              }
+            ]
+          }
+        ],
+        "project": "质量数据采集"
+      },
+      {
+        "subElements": [
+          {
+            "subElement": "指标监控分析",
+            "clauses": [
+              {
+                "clauseName": "过程指标监控（整车）",
+                "clauseId": "CY-GC-02"
+              }
+            ]
+          }
+        ],
+        "project": "质量数据运用"
+      }
+    ]
+  }
+]

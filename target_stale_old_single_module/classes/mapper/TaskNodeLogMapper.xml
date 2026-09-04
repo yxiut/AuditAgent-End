@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wb.audit.task.mapper.TaskNodeLogMapper">
+
+    <select id="selectById" parameterType="long" resultType="com.wb.audit.task.entity.TaskNodeLog">
+        SELECT id, task_id, clause_id, node_type, from_state, to_state, operator_id, source, detail_json, create_time, update_time FROM wb_task_node_log WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultType="com.wb.audit.task.entity.TaskNodeLog">
+        SELECT id, task_id, clause_id, node_type, from_state, to_state, operator_id, source, detail_json, create_time, update_time FROM wb_task_node_log
+    </select>
+
+    <insert id="insert" parameterType="com.wb.audit.task.entity.TaskNodeLog" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wb_task_node_log (task_id, clause_id, node_type, from_state, to_state, operator_id, source, detail_json, create_time, update_time)
+        VALUES (#{taskId}, #{clauseId}, #{nodeType}, #{fromState}, #{toState}, #{operatorId}, #{source}, #{detailJson}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="updateById" parameterType="com.wb.audit.task.entity.TaskNodeLog">
+        UPDATE wb_task_node_log
+        SET task_id = #{taskId},
+      clause_id = #{clauseId},
+      node_type = #{nodeType},
+      from_state = #{fromState},
+      to_state = #{toState},
+      operator_id = #{operatorId},
+      source = #{source},
+      detail_json = #{detailJson},
+      create_time = #{createTime},
+      update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM wb_task_node_log WHERE id = #{id}
+    </delete>
+
+</mapper>

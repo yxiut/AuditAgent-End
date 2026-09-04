@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wb.audit.dict.mapper.DictEntityAliasMapper">
+
+    <select id="selectById" parameterType="long" resultType="com.wb.audit.dict.entity.DictEntityAlias">
+        SELECT id, entity_type, standard_value, alias, create_time, update_time FROM wb_dict_entity_alias WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultType="com.wb.audit.dict.entity.DictEntityAlias">
+        SELECT id, entity_type, standard_value, alias, create_time, update_time FROM wb_dict_entity_alias
+    </select>
+
+    <insert id="insert" parameterType="com.wb.audit.dict.entity.DictEntityAlias" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wb_dict_entity_alias (entity_type, standard_value, alias, create_time, update_time)
+        VALUES (#{entityType}, #{standardValue}, #{alias}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="updateById" parameterType="com.wb.audit.dict.entity.DictEntityAlias">
+        UPDATE wb_dict_entity_alias
+        SET entity_type = #{entityType},
+      standard_value = #{standardValue},
+      alias = #{alias},
+      create_time = #{createTime},
+      update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM wb_dict_entity_alias WHERE id = #{id}
+    </delete>
+
+</mapper>

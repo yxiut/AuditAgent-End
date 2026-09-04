@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wb.audit.task.mapper.TaskClauseMapper">
+
+    <select id="selectById" parameterType="long" resultType="com.wb.audit.task.entity.TaskClause">
+        SELECT id, task_id, clause_id, clause_name, region, project, sub_element, assignee_id, node_type, state, material_state, audit_state, review_state, version, create_time, update_time FROM wb_task_clause WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultType="com.wb.audit.task.entity.TaskClause">
+        SELECT id, task_id, clause_id, clause_name, region, project, sub_element, assignee_id, node_type, state, material_state, audit_state, review_state, version, create_time, update_time FROM wb_task_clause
+    </select>
+
+    <insert id="insert" parameterType="com.wb.audit.task.entity.TaskClause" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wb_task_clause (task_id, clause_id, clause_name, region, project, sub_element, assignee_id, node_type, state, material_state, audit_state, review_state, version, create_time, update_time)
+        VALUES (#{taskId}, #{clauseId}, #{clauseName}, #{region}, #{project}, #{subElement}, #{assigneeId}, #{nodeType}, #{state}, #{materialState}, #{auditState}, #{reviewState}, #{version}, #{createTime}, #{updateTime})
+    </insert>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM wb_task_clause WHERE id = #{id}
+    </delete>
+
+</mapper>

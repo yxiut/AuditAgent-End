@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wb.audit.message.mapper.NotifyTemplateMapper">
+
+    <select id="selectById" parameterType="long" resultType="com.wb.audit.message.entity.NotifyTemplate">
+        SELECT id, code, title, content, wecom_template_id, status, version, updated_by, create_time, update_time FROM wb_notify_template WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultType="com.wb.audit.message.entity.NotifyTemplate">
+        SELECT id, code, title, content, wecom_template_id, status, version, updated_by, create_time, update_time FROM wb_notify_template
+    </select>
+
+    <insert id="insert" parameterType="com.wb.audit.message.entity.NotifyTemplate" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wb_notify_template (code, title, content, wecom_template_id, status, version, updated_by, create_time, update_time)
+        VALUES (#{code}, #{title}, #{content}, #{wecomTemplateId}, #{status}, #{version}, #{updatedBy}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="updateById" parameterType="com.wb.audit.message.entity.NotifyTemplate">
+        UPDATE wb_notify_template
+        SET code = #{code},
+      title = #{title},
+      content = #{content},
+      wecom_template_id = #{wecomTemplateId},
+      status = #{status},
+      version = #{version},
+      updated_by = #{updatedBy},
+      create_time = #{createTime},
+      update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM wb_notify_template WHERE id = #{id}
+    </delete>
+
+</mapper>

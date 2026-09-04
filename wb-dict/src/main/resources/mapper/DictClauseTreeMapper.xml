@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wb.audit.dict.mapper.DictClauseTreeMapper">
+
+    <select id="selectById" parameterType="long" resultType="com.wb.audit.dict.entity.DictClauseTree">
+        SELECT id, parent_id, region, project, sub_element, clause_id, clause_name, node_type, level_no, status, create_time, update_time FROM wb_dict_clause_tree WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultType="com.wb.audit.dict.entity.DictClauseTree">
+        SELECT id, parent_id, region, project, sub_element, clause_id, clause_name, node_type, level_no, status, create_time, update_time FROM wb_dict_clause_tree
+    </select>
+
+    <insert id="insert" parameterType="com.wb.audit.dict.entity.DictClauseTree" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wb_dict_clause_tree (parent_id, region, project, sub_element, clause_id, clause_name, node_type, level_no, status, create_time, update_time)
+        VALUES (#{parentId}, #{region}, #{project}, #{subElement}, #{clauseId}, #{clauseName}, #{nodeType}, #{levelNo}, #{status}, #{createTime}, #{updateTime})
+    </insert>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM wb_dict_clause_tree WHERE id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,10 @@
+services:
+  wecom-callback:
+    build: .
+    image: wecom-callback:latest
+    container_name: wecom-callback
+    restart: unless-stopped
+    env_file:
+      - wecom-callback.env        # 提供 WECOM_TOKEN / WECOM_AES_KEY（HOST_PORT 仅宿主侧用）
+    ports:
+      - "8280:8280"               # 宿主 8280 -> 容器 8280（全链路统一）

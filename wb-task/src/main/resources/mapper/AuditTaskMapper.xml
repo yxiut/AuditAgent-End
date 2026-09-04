@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wb.audit.task.mapper.AuditTaskMapper">
+
+    <select id="selectById" parameterType="long" resultType="com.wb.audit.task.entity.AuditTask">
+        SELECT id, task_no, factory_id, period_type, period_start, period_end, region, owner_id, global_state, material_all_collected, create_time, update_time FROM wb_audit_task WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultType="com.wb.audit.task.entity.AuditTask">
+        SELECT id, task_no, factory_id, period_type, period_start, period_end, region, owner_id, global_state, material_all_collected, create_time, update_time FROM wb_audit_task
+    </select>
+
+    <insert id="insert" parameterType="com.wb.audit.task.entity.AuditTask" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wb_audit_task (task_no, factory_id, period_type, period_start, period_end, region, owner_id, global_state, material_all_collected, create_time, update_time)
+        VALUES (#{taskNo}, #{factoryId}, #{periodType}, #{periodStart}, #{periodEnd}, #{region}, #{ownerId}, #{globalState}, #{materialAllCollected}, #{createTime}, #{updateTime})
+    </insert>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM wb_audit_task WHERE id = #{id}
+    </delete>
+
+</mapper>
