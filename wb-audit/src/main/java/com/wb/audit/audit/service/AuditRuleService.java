@@ -18,4 +18,7 @@ public interface AuditRuleService {
 
     /** listTasks：审核员（owner）名下任务列表（04 审核监控选任务用） */
     Map<String, Object> ownerTasks(Long ownerId);
+
+    /** queryReadyTasks：列「材料已收齐、待 AI 审核」的任务（定时任务轮询用，只读） */
+    java.util.List<Map<String, Object>> readyTasks();
 }

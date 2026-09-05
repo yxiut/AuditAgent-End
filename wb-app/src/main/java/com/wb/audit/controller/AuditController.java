@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -51,6 +52,11 @@ public class AuditController {
         return Result.ok(auditRuleService.ownerTasks(user.getUserId()));
     }
 
+    /** queryReadyTasks：列「材料已收齐、待 AI 审核」的任务（定时任务轮询用） */
+    @GetMapping("/ready-tasks")
+    public Result<List<Map<String, Object>>> readyTasks() {
+        return Result.ok(auditRuleService.readyTasks());
+    }
     /** pullQueue：取待审条款（材料已收齐、audit_state=PENDING） */
     @GetMapping("/queue")
     public Result<Map<String, Object>> queue(@RequestParam Long taskId) {

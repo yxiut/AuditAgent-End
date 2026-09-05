@@ -236,6 +236,59 @@ public class TaskServiceImpl implements TaskService {
 
     private static final Logger log = LoggerFactory.getLogger(TaskServiceImpl.class);
 
+    @Override
+    public java.util.List<java.util.Map<String, Object>> historyList(
+            Long ownerId, String periodType, String periodStart, String periodEnd,
+            Long factoryId, String region, String clauseId) {
+        LambdaQueryWrapper<AuditTask> qw = new LambdaQueryWrapper<AuditTask>()
+                .eq(ownerId != null, AuditTask::getOwnerId, ownerId)
+                .eq(factoryId != null, AuditTask::getFactoryId, factoryId)
+                .eq(region != null && !region.isBlank(), AuditTask::getRegion, region)
+                .eq(periodType != null && !periodType.isBlank(), AuditTask::getPeriodType, periodType)
+                .orderByDesc(AuditTask::getId);
+        if (periodStart != null && !periodStart.isBlank()) {
+            qw.ge(AuditTask::getPeriodStart, java.time.LocalDate.parse(periodStart));
+        }
+        if (periodEnd != null && !periodEnd.isBlank()) {
+            qw.le(AuditTask::getPeriodEnd, java.time.LocalDate.parse(periodEnd));
+        }
+        List<AuditTask> tasks = auditTaskMapper.selectList(qw);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (AuditTask t : tasks) {
+            if (clauseId != null && !clauseId.isBlank()) {
+                Long n = taskClauseMapper.selectCount(new LambdaQueryWrapper<TaskClause>()
+                        .eq(TaskClause::getTaskId, t.getId())
+                        .eq(TaskClause::getClauseId, clauseId));
+                if (n == null || n == 0) {
+                    continue;
+                }
+            }
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("taskId", t.getId());
+            m.put("taskNo", t.getTaskNo());
+            m.put("factoryId", t.getFactoryId());
+            m.put("factoryName", TaskConstants.FACTORY_NAME.getOrDefault(t.getFactoryId(), String.valueOf(t.getFactoryId())));
+            m.put("periodType", t.getPeriodType());
+            m.put("periodStart", String.valueOf(t.getPeriodStart()));
+            m.put("periodEnd", String.valueOf(t.getPeriodEnd()));
+            m.put("region", t.getRegion());
+            m.put("globalState", t.getGlobalState());
+            List<Map<String, Object>> cls = new ArrayList<>();
+            for (TaskClause tc : taskClauseMapper.selectList(new LambdaQueryWrapper<TaskClause>()
+                    .eq(TaskClause::getTaskId, t.getId())
+                    .orderByAsc(TaskClause::getId))) {
+                Map<String, Object> cm = new LinkedHashMap<>();
+                cm.put("clauseId", tc.getClauseId());
+                cm.put("clauseName", tc.getClauseName());
+                cm.put("state", tc.getState());
+                cls.add(cm);
+            }
+            m.put("clauses", cls);
+            m.put("createTime", String.valueOf(t.getCreateTime()));
+            out.add(m);
+        }
+        return out;
+    }
     public TaskServiceImpl(AuthService authService, DictService dictService, NotifyService notifyService, AuditTaskMapper auditTaskMapper, TaskClauseMapper taskClauseMapper, TaskAssignmentMapper taskAssignmentMapper, TaskNodeLogMapper taskNodeLogMapper) {
         this.authService = authService;
         this.dictService = dictService;

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-wb-audit-mcp v2 —— WorkBuddy 自定义连接器(MCP) -> AI 审核助手后端（DEMO 链路 5 聚合工具）
-==========================================================================================
+wb-audit-mcp v2 —— WorkBu ================================================
 对齐最新版 Skill 契约（01 发起 / 02 交材料 / 03 规则执行 / 04 监控），
 把 Spring Boot REST 后端包装成 5 个按域聚合的 MCP 工具，工具内用 `action` 分发：
 
@@ -46,8 +45,9 @@ def _request(method, path, headers=None, body_bytes=None):
     req.add_header("Accept", "application/json")
     for k, v in (headers or {}).items():
         req.add_header(k, str(v))
+    _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 本地后端直连，禁用代理(防网关502)
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        with _opener.open(req, timeout=TIMEOUT) as resp:
             payload = resp.read()
     except urllib.error.HTTPError as e:
         return {"http_error": True, "status": e.code,
@@ -154,6 +154,48 @@ def g_bool(args, key, default):
         return v.strip().lower() in ("1", "true", "yes", "y")
     return bool(v)
 
+
+
+def _norm_ints(v):
+    """容错归一为 int 列表：支持 list / 单个数字 / 数字串 / 逗号·空格·分号分隔串。"""
+    if v is None:
+        return []
+    if isinstance(v, list):
+        out = []
+        for x in v:
+            if isinstance(x, bool):
+                continue
+            try:
+                out.append(int(str(x).strip()))
+            except (TypeError, ValueError):
+                pass
+        return out
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return [int(v)]
+    s = str(v).strip()
+    if not s:
+        return []
+    out = []
+    for p in re.split(r"[,\s;]+", s):
+        if not p:
+            continue
+        try:
+            out.append(int(p))
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def _norm_strs(v):
+    """容错归一为字符串列表：支持 list / 单值 / 逗号·空格·分号分隔串。"""
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return [str(x) for x in v if str(x) not in ("", "None")]
+    s = str(v).strip()
+    if not s or s == "None":
+        return []
+    return [p for p in re.split(r"[,\s;]+", s) if p]
 
 def resolve_task_id(args):
     """优先取参数 task_id / taskId；否则用会话内已锚定任务。"""
@@ -269,16 +311,38 @@ def h_task(args):
     global ACTIVE_TASK
     action = g(args, "action", "")
     actor = g_int(args, "actor", 5)
-    if action in ("searchHistory", "listCopyable", "copyStructure", "saveBaseline"):
-        return False, ("DEMO 版不走后端：%s 由会话上下文承接（本会话最近一次任务即历史，复制=沿用其范围与分派）。"
+    if action == "searchHistory":
+        # 历史检索走后端：当前审核员(owner)创建的任务，创建时间倒序、状态不限
+        q = {}
+        ms = args.get("matchedSlots") or {}
+        if isinstance(ms, dict):
+            q.setdefault("region", ms.get("region") or ms.get("区域") or args.get("region"))
+            q.setdefault("clauseId", ms.get("clauseId") or ms.get("clause_id") or ms.get("条款") or args.get("clause_id"))
+            q.setdefault("periodType", ms.get("periodType") or ms.get("period_type") or args.get("period_type"))
+            q.setdefault("periodStart", ms.get("periodStart") or ms.get("period_start") or args.get("period_start"))
+            q.setdefault("periodEnd", ms.get("periodEnd") or ms.get("period_end") or args.get("period_end"))
+        else:
+            for k in ("region", "clauseId", "periodType", "periodStart", "periodEnd"):
+                if args.get(k):
+                    q[k] = args[k]
+        if args.get("factory_id") is not None:
+            q["factoryId"] = args["factory_id"]
+        qs = {k: v for k, v in q.items() if v not in (None, "")}
+        path = "/tasks/queryHistoryList" + ("?" + urllib.parse.urlencode(qs) if qs else "")
+        return call_get(path, actor=actor)
+    if action in ("listCopyable", "copyStructure", "saveBaseline"):
+        return False, ("DEMO 版不走后端：%s 由会话上下文承接（复制=沿用最近一次历史任务的范围与分派）。"
                        % action)
     if action == "createAndDispatch":
         # 方式1（推荐）：平铺高参 -> 适配器自动组装成后端 TaskDto，模型不用拼嵌套结构
-        flat_ok = (isinstance(args.get("clause_ids"), list) and len(args.get("clause_ids")) > 0
+        _cls = _norm_strs(args.get("clause_ids"))
+        if not _cls and args.get("clause_id"):
+            _cls = [str(args.get("clause_id"))]
+        flat_ok = (len(_cls) > 0
                    and all(args.get(k) not in (None, "") for k in
                            ("period_type", "period_start", "period_end", "factory_id", "region", "assignee_user_id")))
         if flat_ok:
-            clause_ids = [c for c in args["clause_ids"] if c]
+            clause_ids = _cls
             assignee = int(args["assignee_user_id"])
             body = {
                 "period": {"type": args["period_type"], "start": args["period_start"], "end": args["period_end"]},
@@ -296,7 +360,7 @@ def h_task(args):
                 body = payload
             else:
                 need = []
-                if not (isinstance(args.get("clause_ids"), list) and args.get("clause_ids")):
+                if not _cls:
                     need.append("clause_ids[]")
                 for k in ("period_type", "period_start", "period_end", "factory_id", "region", "assignee_user_id"):
                     if args.get(k) in (None, ""):
@@ -316,7 +380,7 @@ def h_notify(args):
     action = g(args, "action", "notifyDispatch")
     if action != "notifyDispatch":
         return False, "audit_notify 未知 action: %s" % action
-    to_users = args.get("to_users") or []
+    to_users = _norm_strs(args.get("to_users"))
     template_code = g(args, "template_code", "MATERIAL_PENDING")
     task_id = args.get("task_id")
     body = {"taskId": task_id, "templateCode": template_code,
@@ -364,11 +428,13 @@ def h_material(args):
         return upload_file(tid, clause_id, file_path, actor)
     if action == "confirm":
         tid = resolve_task_id(args)
-        material_ids = args.get("material_ids") or []
+        material_ids = _norm_ints(args.get("material_ids"))
+        if not material_ids:
+            material_ids = _norm_ints(args.get("material_id"))
         if not tid or not material_ids:
-            return False, "confirm 需要 task_id + material_ids（来自 upload 返回）"
+            return False, "confirm 需要 task_id + material_ids（数组/单值/逗号串均可，来自 upload 返回）"
         return call_json("POST", "/materials/tasks/confirm",
-                         body={"taskId": tid, "materialIds": [int(x) for x in material_ids]},
+                         body={"taskId": tid, "materialIds": material_ids},
                          actor=actor)
     return False, "audit_material 未知 action: %s（支持 listTasks/listPending/previewPull/upload/confirm）" % action
 
@@ -409,6 +475,10 @@ def h_execute(args):
         if not tid:
             return False, "runTask 需要 task_id"
         return call_json("POST", "/execute/tasks/run", body={"taskId": tid})
+    if action == "queryReadyTasks":
+        # 定时任务轮询：列材料已收齐、待 AI 审核的任务（只读）
+        return call_get("/audit/ready-tasks")
+
     if action == "pullQueue":
         tid = resolve_task_id(args)
         if not tid:
@@ -462,7 +532,7 @@ def h_execute(args):
         if not tid:
             return False, "getProgress 需要 task_id"
         return call_get("/audit/progress?taskId=%s" % tid, actor=5)
-    return False, "audit_execute 未知 action: %s（支持 pullQueue/runTask/getRule/getMaterial/writeConclusion/getProgress）" % action
+    return False, "audit_execute 未知 action: %s（支持 queryReadyTasks/pullQueue/runTask/getRule/getMaterial/writeConclusion/getProgress）" % action
 
 # ---------------------------------------------------------------- 工具清单（5 聚合）
 _COMMON = {
@@ -481,7 +551,8 @@ _COMMON = {
     "clause_ids": {"type": "array", "items": {"type": "string"}, "description": "条款编号列表，如 HJ-GC-02"},
     "assignee_user_id": {"type": "integer", "description": "分派人(被审核人)ID：4=陈志强"},
     "file_path": {"type": "string", "description": "本机文件绝对路径"},
-    "material_ids": {"type": "array", "items": {"type": "integer"}, "description": "materialId 列表"},
+    "material_ids": {"type": "array", "items": {"type": "integer"}, "description": "materialId 列表（若客户端数组校验有 bug，可用单值 material_id 或逗号串）"},
+    "material_id": {"type": "integer", "description": "confirm 单个 materialId（与 material_ids 二选一，绕开数组校验问题）"},
     "to_users": {"type": "array", "items": {"type": "string"}, "description": "企微 userid 列表"},
     "template_code": {"type": "string", "description": "模板：MATERIAL_PENDING/REVIEW_PENDING/TASK_FORWARD"},
     "outcome": {"type": "string", "description": "scored/blocked"},

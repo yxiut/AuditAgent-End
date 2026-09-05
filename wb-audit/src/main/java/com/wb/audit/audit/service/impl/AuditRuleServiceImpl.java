@@ -74,6 +74,34 @@ public class AuditRuleServiceImpl implements AuditRuleService {
         return Map.of("taskId", taskId, "clauseIds", clauseIds);
     }
 
+    @Override
+    public java.util.List<Map<String, Object>> readyTasks() {
+        List<AuditTask> tasks = auditTaskMapper.selectList(new LambdaQueryWrapper<AuditTask>()
+                .eq(AuditTask::getMaterialAllCollected, 1)
+                .notIn(AuditTask::getGlobalState, java.util.List.of("AUDITING", "HUMAN_REVIEW", "COMPLETED"))
+                .orderByAsc(AuditTask::getId));
+
+        java.util.List<Map<String, Object>> out = new java.util.ArrayList<>();
+
+        for (AuditTask t : tasks) {
+            Long cnt = taskClauseMapper.selectCount(new LambdaQueryWrapper<TaskClause>()
+                    .eq(TaskClause::getTaskId, t.getId())
+                    .eq(TaskClause::getAuditState, "PENDING"));
+
+            if (cnt != null && cnt > 0) {
+                Map<String, Object> m = new java.util.LinkedHashMap<>();
+                m.put("taskId", t.getId());
+                m.put("taskNo", t.getTaskNo());
+                m.put("factoryName", TaskConstants.FACTORY_NAME.getOrDefault(t.getFactoryId(), String.valueOf(t.getFactoryId())));
+                m.put("period", t.getPeriodStart() + " ~ " + t.getPeriodEnd());
+                m.put("region", t.getRegion());
+                m.put("globalState", t.getGlobalState());
+                m.put("pendingClauseCount", cnt);
+                out.add(m);
+            }
+        }
+        return out;
+    }
     public AuditRuleServiceImpl(RuleDocMapper ruleDocMapper, TaskClauseMapper taskClauseMapper, AuditTaskMapper auditTaskMapper) {
         this.ruleDocMapper = ruleDocMapper;
         this.taskClauseMapper = taskClauseMapper;

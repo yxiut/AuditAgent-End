@@ -16,14 +16,9 @@ public final class TaskConstants {
     public static final Map<Long, String> FACTORY_CODE = Map.of(
             1L, "LX", 2L, "LJ", 3L, "YF");
 
-    /** 取数规则ID → CSV 文件列表（随包 classpath:data/sim/ 下） */
+    /** 取数规则ID → CSV 文件列表（随包 classpath:data/sim/ 下；2026-09-05 调整为仅取 sim_月度指标.csv） */
     public static final Map<String, List<String>> PULL_RULE_FILES = Map.of(
-            "FTR", List.of(
-                    "sim_月度指标.csv",
-                    "sim_原子问题明细.csv",
-                    "sim_系统TOP3问题.csv",
-                    "sim_当班问题列表.csv",
-                    "sim_0MIS问题列表.csv"));
+            "FTR", List.of("sim_月度指标.csv"));
 
     private TaskConstants() {
     }
