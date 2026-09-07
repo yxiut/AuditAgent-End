@@ -4,6 +4,7 @@ import com.wb.audit.audit.dto.ConclusionVo;
 import com.wb.audit.audit.dto.ConclusionWriteDto;
 import com.wb.audit.audit.dto.IssueConfirmDto;
 import com.wb.audit.audit.dto.ProgressVo;
+import com.wb.audit.audit.dto.ReviewConfirmDto;
 
 import java.util.Map;
 
@@ -20,4 +21,7 @@ public interface AuditConclusionService {
 
     /** 人工复审：审核员逐条确认/驳回，确认后算条款分（已确认问题最低分，无问题10） */
     Map<String, Object> confirm(IssueConfirmDto dto);
+
+    /** 人工复审整表确认（confirmReview）：按 getProgress.bipRows 基线 diff 写回，任务 HUMAN_REVIEW→REVIEWED */
+    Map<String, Object> reviewConfirm(ReviewConfirmDto dto);
 }

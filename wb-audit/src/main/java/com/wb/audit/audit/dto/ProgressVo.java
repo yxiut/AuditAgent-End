@@ -29,7 +29,7 @@ public class ProgressVo {
     /** 条款进度列表 */
     private List<ClauseProgressVo> clauses;
 
-    /** 结果区 BIP 问题管理表行（12 列，见 04 审核监控） */
+    /** 结果区 BIP 问题管理表行（10 列，与《各类报告模板汇总》BIP问题管理表一致） */
     private List<Map<String, Object>> bipRows;
 
     public Long getTaskId() { return taskId; }

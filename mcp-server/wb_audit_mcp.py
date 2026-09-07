@@ -532,6 +532,20 @@ def h_execute(args):
         if not tid:
             return False, "getProgress 需要 task_id"
         return call_get("/audit/progress?taskId=%s" % tid, actor=5)
+
+    if action == "confirmReview":
+        tid = resolve_task_id(args)
+        if not tid:
+            return False, "confirmReview 需要 task_id"
+        body = {"taskId": tid}
+        if args.get("remove") is not None:
+            body["remove"] = args["remove"]
+        if args.get("add") is not None:
+            body["add"] = args["add"]
+        if args.get("fieldChanges") is not None:
+            body["fieldChanges"] = args["fieldChanges"]
+        # remove=[基线序号], add=[{区域,项目,子要素,条款,问题描述,严重度（赋分）,问题属性}], fieldChanges=[{序号,字段,from,to}]
+        return call_json("POST", "/audit/review/confirm", body=body, actor=5)
     return False, "audit_execute 未知 action: %s（支持 queryReadyTasks/pullQueue/runTask/getRule/getMaterial/writeConclusion/getProgress）" % action
 
 # ---------------------------------------------------------------- 工具清单（5 聚合）
@@ -580,7 +594,11 @@ TOOLS = [
     {"name": "audit_execute", "description": "审核执行（AI/张伟）。action 必填："
         "pullQueue=取待审条款(task_id，材料收齐即 PENDING); getRule=取规则全文(clause_id)；"
         "getMaterial=取材料全文(task_id+clause_id)；writeConclusion=写结论(task_id+clause_id+outcome+issues，"
-        "成功即任务→HUMAN_REVIEW并企微通知审核员)；getProgress=查进度(task_id)。",
+        "成功即任务→HUMAN_REVIEW并企微通知审核员)；getProgress=查进度(task_id，返回 bipRows 10 列)；"
+        "confirmReview=人工复审整表确认(task_id + remove[] + add[] + fieldChanges[]，相对当次 getProgress 基线；"
+        "无改动传空即可=按现状落库；成功任务→REVIEWED)。可跑示例：confirmReview 无改动={\"taskId\":232}；"
+        "改严重度=[{\"序号\":1,\"字段\":\"严重度（赋分）\",\"from\":6,\"to\":4}]；"
+        "删除行={\"taskId\":232,\"remove\":[2]}；新增行={\"taskId\":232,\"add\":[{\"区域\":\"过程（焊接）\",\"项目\":\"质量数据运用\",\"子要素\":\"指标监控分析\",\"条款\":\"过程指标监控\",\"问题描述\":\"人工发现…\",\"严重度（赋分）\":8,\"问题属性\":\"执行类\"}]}。",
      "inputSchema": {"type": "object", "additionalProperties": True, "properties": dict(_COMMON), "required": ["action"]}},
 ]
 

@@ -4,6 +4,7 @@ import com.wb.audit.audit.dto.ConclusionVo;
 import com.wb.audit.audit.dto.ConclusionWriteDto;
 import com.wb.audit.audit.dto.IssueConfirmDto;
 import com.wb.audit.audit.dto.ProgressVo;
+import com.wb.audit.audit.dto.ReviewConfirmDto;
 import com.wb.audit.audit.dto.RuleVo;
 import com.wb.audit.audit.service.AuditConclusionService;
 import com.wb.audit.audit.service.AuditRuleService;
@@ -79,6 +80,12 @@ public class AuditController {
     @PostMapping("/issues/confirm")
     public Result<Map<String, Object>> confirm(@Valid @RequestBody IssueConfirmDto dto) {
         return Result.ok(auditConclusionService.confirm(dto));
+    }
+
+    /** 人工复审整表确认（confirmReview）：按 getProgress.bipRows 基线 diff 写回；成功后任务→REVIEWED */
+    @PostMapping("/review/confirm")
+    public Result<Map<String, Object>> reviewConfirm(@Valid @RequestBody ReviewConfirmDto dto) {
+        return Result.ok(auditConclusionService.reviewConfirm(dto));
     }
 
     public AuditController(AuditRuleService auditRuleService, AuditConclusionService auditConclusionService, AuthService authService) {

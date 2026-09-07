@@ -9,6 +9,7 @@ import com.wb.audit.audit.dto.IssueConfirmDto;
 import com.wb.audit.audit.dto.IssueVo;
 import com.wb.audit.audit.dto.IssueWriteDto;
 import com.wb.audit.audit.dto.ProgressVo;
+import com.wb.audit.audit.dto.ReviewConfirmDto;
 import com.wb.audit.audit.entity.AuditConclusion;
 import com.wb.audit.audit.entity.AuditIssue;
 import com.wb.audit.audit.entity.AuditRun;
@@ -39,6 +40,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -57,6 +59,9 @@ public class AuditConclusionServiceImpl implements AuditConclusionService {
     private final AuthService authService;
     private final NotifyService notifyService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /** 允许的严重度（赋分）档位（与 parse_bip_xlsx.py SCORE_OK 一致） */
+    private static final Set<Integer> SCORE_VALUES = Set.of(0, 2, 4, 6, 8, 10);
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -186,9 +191,12 @@ public class AuditConclusionServiceImpl implements AuditConclusionService {
                     cp.setSuggestedScore(issueVos.stream().map(IssueVo::getScore)
                             .filter(java.util.Objects::nonNull).min(Integer::compareTo).orElse(null));
                 }
-                // 结果区 BIP 行（12 列；依据/ruleId/置信度/判定建议不进 BIP）
+                // 结果区 BIP 行（10 列，与《各类报告模板汇总》BIP问题管理表一致；已驳回 REJECTED 的问题不进表）
                 if (!"blocked".equals(c.getOutcome())) {
                     for (IssueVo iv : issueVos) {
+                        if ("REJECTED".equals(iv.getConfirmStatus())) {
+                            continue;
+                        }
                         seq++;
                         Map<String, Object> row = new LinkedHashMap<>();
                         row.put("时间", timeText);
@@ -201,8 +209,6 @@ public class AuditConclusionServiceImpl implements AuditConclusionService {
                         row.put("问题描述", iv.getProblemDesc());
                         row.put("严重度（赋分）", iv.getScore());
                         row.put("问题属性", iv.getProblemType());
-                        row.put("复核结论", "");
-                        row.put("修改意见", "");
                         bipRows.add(row);
                     }
                 }
@@ -268,11 +274,13 @@ public class AuditConclusionServiceImpl implements AuditConclusionService {
                 .eq(TaskClause::getTaskId, dto.getTaskId())
                 .ne(TaskClause::getReviewState, "CONFIRMED"));
         AuditTask task = auditTaskMapper.selectById(dto.getTaskId());
-        if (task != null && pendingReview == 0 && !"COMPLETED".equals(task.getGlobalState())) {
+        if (task != null && pendingReview == 0 && !"REVIEWED".equals(task.getGlobalState())
+                && !"COMPLETED".equals(task.getGlobalState())) {
             String prev = task.getGlobalState();
-            task.setGlobalState("COMPLETED");
+            // 人工复审通过（DEMO 收口到 REVIEWED，COMPLETED 留给报告阶段）
+            task.setGlobalState("REVIEWED");
             auditTaskMapper.updateById(task);
-            taskNodeLogMapper.insert(nodeLog(task.getId(), null, "TASK", prev, "COMPLETED", task.getOwnerId()));
+            taskNodeLogMapper.insert(nodeLog(task.getId(), null, "TASK", prev, "REVIEWED", task.getOwnerId()));
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("clauseId", clause.getClauseId());
@@ -281,6 +289,251 @@ public class AuditConclusionServiceImpl implements AuditConclusionService {
         out.put("issueResults", results);
         return out;
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> reviewConfirm(ReviewConfirmDto dto) {
+        AuditTask task = auditTaskMapper.selectById(dto.getTaskId());
+        if (task == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "任务不存在: " + dto.getTaskId());
+        }
+        List<TaskClause> clauses = taskClauseMapper.selectList(new LambdaQueryWrapper<TaskClause>()
+                .eq(TaskClause::getTaskId, dto.getTaskId())
+                .orderByAsc(TaskClause::getId));
+
+        // 1) 基线序号索引：与 getProgress.bipRows 同序（条款 id 升序、非 REJECTED 问题 id 升序；blocked 不入表）
+        Map<Integer, AuditIssue> seqIssue = new LinkedHashMap<>();
+        Map<Integer, TaskClause> seqClause = new LinkedHashMap<>();
+        Map<Long, AuditConclusion> conclByClause = new LinkedHashMap<>();
+        int seq = 0;
+        for (TaskClause tc : clauses) {
+            AuditConclusion c = conclusionMapper.selectOne(new LambdaQueryWrapper<AuditConclusion>()
+                    .eq(AuditConclusion::getTaskId, dto.getTaskId())
+                    .eq(AuditConclusion::getClauseId, tc.getClauseId())
+                    .orderByDesc(AuditConclusion::getId)
+                    .last("LIMIT 1"));
+            if (c == null || "blocked".equals(c.getOutcome())) {
+                continue;
+            }
+            conclByClause.put(tc.getId(), c);
+            List<AuditIssue> issues = issueMapper.selectList(new LambdaQueryWrapper<AuditIssue>()
+                    .eq(AuditIssue::getConclusionId, c.getId())
+                    .orderByAsc(AuditIssue::getId));
+            for (AuditIssue issue : issues) {
+                if ("REJECTED".equals(issue.getConfirmStatus())) {
+                    continue;
+                }
+                seq++;
+                seqIssue.put(seq, issue);
+                seqClause.put(seq, tc);
+            }
+        }
+
+        // 2) remove：基线序号 → 问题置 REJECTED（从 BIP 表移除但留痕）
+        int removed = 0;
+        if (dto.getRemove() != null) {
+            for (Integer sNo : dto.getRemove()) {
+                AuditIssue issue = seqIssue.get(sNo);
+                if (issue == null || "REJECTED".equals(issue.getConfirmStatus())) {
+                    continue; // 幂等：不存在/已驳回忽略
+                }
+                String prev = issue.getConfirmStatus() == null ? "PENDING" : issue.getConfirmStatus();
+                issue.setConfirmStatus("REJECTED");
+                issueMapper.updateById(issue);
+                TaskClause tc = seqClause.get(sNo);
+                taskNodeLogMapper.insert(nodeLog(dto.getTaskId(), tc == null ? null : tc.getClauseId(),
+                        "CLAUSE", prev, "REJECTED", task.getOwnerId()));
+                removed++;
+            }
+        }
+
+        // 3) add：新增人工发现问题（确认状态直接 CONFIRMED）
+        int added = 0;
+        if (dto.getAdd() != null) {
+            for (ReviewConfirmDto.BipAddRow row : dto.getAdd()) {
+                if (row.getProblemDesc() == null || row.getProblemDesc().isBlank()) {
+                    throw new BizException(ResultCode.PARAM_ERROR, "新增行缺少问题描述");
+                }
+                if (row.getScore() == null || !SCORE_VALUES.contains(row.getScore())) {
+                    throw new BizException(ResultCode.PARAM_ERROR,
+                            "新增行严重度（赋分）必须为 0/2/4/6/8/10 之一");
+                }
+                TaskClause target = findClauseByBip(clauses, row.getRegion(), row.getClause());
+                if (target == null) {
+                    throw new BizException(ResultCode.PARAM_ERROR,
+                            "新增行找不到任务内条款(区域/条款): " + row.getRegion() + "/" + row.getClause());
+                }
+                AuditConclusion c = conclByClause.get(target.getId());
+                if (c == null) {
+                    throw new BizException(ResultCode.PARAM_ERROR,
+                            "条款尚未出结论，不能新增问题: " + target.getClauseId());
+                }
+                AuditIssue ai = new AuditIssue();
+                ai.setConclusionId(c.getId());
+                ai.setTaskId(dto.getTaskId());
+                ai.setClauseId(target.getClauseId());
+                ai.setRuleId("HUMAN-ADD");
+                ai.setProblemDesc(row.getProblemDesc().trim());
+                ai.setEvidence("人工新增");
+                ai.setProblemType(row.getProblemType());
+                ai.setScore(row.getScore());
+                ai.setRefMaterials("[]");
+                ai.setSuggestJudgment("确认");
+                ai.setConfidence("高");
+                ai.setConfirmStatus("CONFIRMED");
+                issueMapper.insert(ai);
+                added++;
+            }
+        }
+
+        // 4) fieldChanges：按白名单改字段并确认该行
+        int changed = 0;
+        List<String> skippedFields = new ArrayList<>();
+        if (dto.getFieldChanges() != null) {
+            for (ReviewConfirmDto.BipChange ch : dto.getFieldChanges()) {
+                if (ch.getSeq() == null) {
+                    throw new BizException(ResultCode.PARAM_ERROR, "改动缺少序号");
+                }
+                AuditIssue issue = seqIssue.get(ch.getSeq());
+                if (issue == null) {
+                    throw new BizException(ResultCode.PARAM_ERROR, "改动序号不存在: " + ch.getSeq());
+                }
+                String field = ch.getField() == null ? "" : ch.getField();
+                String toVal = ch.getTo() == null ? "" : String.valueOf(ch.getTo()).trim();
+                switch (field) {
+                    case "问题描述":
+                        issue.setProblemDesc(toVal);
+                        break;
+                    case "严重度（赋分）":
+                        int sc;
+                        try {
+                            sc = Integer.parseInt(toVal);
+                        } catch (Exception e) {
+                            throw new BizException(ResultCode.PARAM_ERROR,
+                                    "序号" + ch.getSeq() + " 严重度（赋分）非法: " + toVal);
+                        }
+                        if (!SCORE_VALUES.contains(sc)) {
+                            throw new BizException(ResultCode.PARAM_ERROR,
+                                    "序号" + ch.getSeq() + " 严重度（赋分）必须为 0/2/4/6/8/10 之一: " + toVal);
+                        }
+                        issue.setScore(sc);
+                        break;
+                    case "问题属性":
+                        issue.setProblemType(toVal);
+                        break;
+                    default:
+                        // 时间/制造基地/区域/项目/子要素/条款/序号 不属于人工可改内容，跳过并回显
+                        skippedFields.add(field);
+                        continue;
+                }
+                issue.setConfirmStatus("CONFIRMED");
+                issueMapper.updateById(issue);
+                TaskClause tc = seqClause.get(ch.getSeq());
+                taskNodeLogMapper.insert(nodeLog(dto.getTaskId(), tc == null ? null : tc.getClauseId(),
+                        "CLAUSE", "PENDING", "CONFIRMED", task.getOwnerId()));
+                changed++;
+            }
+        }
+
+        // 5) 整表确认：已出结论(scored)的条款，剩余 PENDING 问题按「就这样」确认；BLOCKED 条款一并确认（无分）
+        List<Map<String, Object>> clauseResults = new ArrayList<>();
+        for (TaskClause tc : clauses) {
+            boolean terminal = "CONCLUDED".equals(tc.getAuditState()) || "BLOCKED".equals(tc.getAuditState());
+            if (!terminal || "CONFIRMED".equals(tc.getReviewState())) {
+                continue;
+            }
+            if ("BLOCKED".equals(tc.getAuditState())) {
+                tc.setReviewState("CONFIRMED");
+                taskClauseMapper.updateById(tc);
+                taskNodeLogMapper.insert(nodeLog(dto.getTaskId(), tc.getClauseId(), "CLAUSE",
+                        "PENDING", "CONFIRMED", task.getOwnerId()));
+                Map<String, Object> cr = new LinkedHashMap<>();
+                cr.put("clauseId", tc.getClauseId());
+                cr.put("reviewState", "CONFIRMED");
+                cr.put("clauseScore", null);
+                clauseResults.add(cr);
+                continue;
+            }
+            AuditConclusion c = conclByClause.get(tc.getId());
+            if (c == null) {
+                continue;
+            }
+            List<AuditIssue> issues = issueMapper.selectList(new LambdaQueryWrapper<AuditIssue>()
+                    .eq(AuditIssue::getConclusionId, c.getId())
+                    .orderByAsc(AuditIssue::getId));
+            Integer minScore = null;
+            boolean hasConfirmed = false;
+            for (AuditIssue issue : issues) {
+                String st = issue.getConfirmStatus();
+                if ("PENDING".equals(st)) {
+                    issue.setConfirmStatus("CONFIRMED");
+                    issueMapper.updateById(issue);
+                    st = "CONFIRMED";
+                }
+                if ("CONFIRMED".equals(st) && issue.getScore() != null) {
+                    hasConfirmed = true;
+                    minScore = minScore == null ? issue.getScore() : Math.min(minScore, issue.getScore());
+                }
+            }
+            Integer clauseScore = hasConfirmed ? minScore : 10;
+            tc.setClauseScore(clauseScore);
+            tc.setReviewState("CONFIRMED");
+            taskClauseMapper.updateById(tc);
+            taskNodeLogMapper.insert(nodeLog(dto.getTaskId(), tc.getClauseId(), "CLAUSE",
+                    "PENDING", "CONFIRMED", task.getOwnerId()));
+            Map<String, Object> cr = new LinkedHashMap<>();
+            cr.put("clauseId", tc.getClauseId());
+            cr.put("reviewState", "CONFIRMED");
+            cr.put("clauseScore", clauseScore);
+            clauseResults.add(cr);
+        }
+
+        // 6) 任务收口：所有条款均进入终态(已出结论/阻塞)且已确认 → HUMAN_REVIEW→REVIEWED
+        long totalTerminal = clauses.stream().filter(tc ->
+                "CONCLUDED".equals(tc.getAuditState()) || "BLOCKED".equals(tc.getAuditState())).count();
+        long pendingReview = clauses.stream().filter(tc ->
+                ("CONCLUDED".equals(tc.getAuditState()) || "BLOCKED".equals(tc.getAuditState()))
+                        && !"CONFIRMED".equals(tc.getReviewState())).count();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("taskId", task.getId());
+        out.put("reviewed", clauseResults);
+        Map<String, Object> applied = new LinkedHashMap<>();
+        applied.put("remove", removed);
+        applied.put("add", added);
+        applied.put("fieldChanges", changed);
+        if (!skippedFields.isEmpty()) {
+            applied.put("skippedFields", skippedFields);
+        }
+        out.put("applied", applied);
+        if (totalTerminal > 0 && pendingReview == 0 && clauses.size() == totalTerminal
+                && !"REVIEWED".equals(task.getGlobalState()) && !"COMPLETED".equals(task.getGlobalState())) {
+            String prev = task.getGlobalState();
+            task.setGlobalState("REVIEWED");
+            auditTaskMapper.updateById(task);
+            taskNodeLogMapper.insert(nodeLog(task.getId(), null, "TASK", prev, "REVIEWED", task.getOwnerId()));
+            out.put("globalState", "REVIEWED");
+        } else {
+            out.put("globalState", task.getGlobalState());
+        }
+        return out;
+    }
+
+    /** 按 BIP 行的区域/条款名定位任务内条款 */
+    private TaskClause findClauseByBip(List<TaskClause> clauses, String region, String clauseName) {
+        TaskClause byNameOnly = null;
+        for (TaskClause tc : clauses) {
+            boolean regionOk = region == null || region.isBlank() || region.equals(tc.getRegion());
+            boolean nameOk = clauseName != null && clauseName.equals(tc.getClauseName());
+            if (nameOk && regionOk) {
+                return tc;
+            }
+            if (nameOk && byNameOnly == null) {
+                byNameOnly = tc;
+            }
+        }
+        return byNameOnly;
+    }
+
 
     /** 审核员（owner）企微通知 */
     private void notifyAuditor(AuditTask task, TaskClause clause, String outcome, int issueCount) {
